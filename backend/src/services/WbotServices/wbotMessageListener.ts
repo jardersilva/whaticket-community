@@ -3,9 +3,6 @@ import { promisify } from "util";
 import { writeFile } from "fs";
 import * as Sentry from "@sentry/node";
 
-import ListSettingsServiceOne from "../SettingServices/ListSettingsServiceOne";
-import Settings from "../../models/Setting";
-
 import {
   Contact as WbotContact,
   Message as WbotMessage,
@@ -36,7 +33,7 @@ interface Session extends Client {
 const writeFileAsync = promisify(writeFile);
 
 const verifyContact = async (msgContact: WbotContact): Promise<Contact> => {
-  /* const profilePicUrl = await msgContact.getProfilePicUrl();
+  const profilePicUrl = await msgContact.getProfilePicUrl();
 
   const contactData = {
     name: msgContact.name || msgContact.pushname || msgContact.id.user,
@@ -48,30 +45,7 @@ const verifyContact = async (msgContact: WbotContact): Promise<Contact> => {
   const contact = CreateOrUpdateContactService(contactData);
 
   return contact;
-}; */
-
-try {
-  const profilePicUrl = await msgContact.getProfilePicUrl();
-  const contactData = {
-      name: msgContact.name || msgContact.pushname || msgContact.id.user,
-      number: msgContact.id.user,
-      profilePicUrl,
-      isGroup: msgContact.isGroup
-  };
-  const contact = CreateOrUpdateContactService(contactData);
-  return contact;
-}
-catch (err) {
-  const profilePicUrl = "/default-profile.png"; // Foto de perfil padrão
-  const contactData = {
-      name: msgContact.name || msgContact.pushname || msgContact.id.user,
-      number: msgContact.id.user,
-      profilePicUrl,
-      isGroup: msgContact.isGroup
-  };
-  const contact = CreateOrUpdateContactService(contactData);
-  return contact;
-}};
+};
 
 const verifyQuotedMessage = async (
   msg: WbotMessage
@@ -89,6 +63,20 @@ const verifyQuotedMessage = async (
   return quotedMsg;
 };
 
+
+// generate random id string for file names, function got from: https://stackoverflow.com/a/1349426/1851801
+function makeRandomId(length: number) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    let counter = 0;
+    while (counter < length) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+      counter += 1;
+    }
+    return result;
+}
+
 const verifyMediaMessage = async (
   msg: WbotMessage,
   ticket: Ticket,
@@ -102,24 +90,21 @@ const verifyMediaMessage = async (
     throw new Error("ERR_WAPP_DOWNLOAD_MEDIA");
   }
 
-/* Check if media not have a filename */
+  let randomId = makeRandomId(5);
 
   if (!media.filename) {
     const ext = media.mimetype.split("/")[1].split(";")[0];
-    media.filename = `${new Date().getTime()}.${ext}`;
+    media.filename = `${randomId}-${new Date().getTime()}.${ext}`;
+  } else {
+    media.filename = media.filename.split('.').slice(0,-1).join('.')+'.'+randomId+'.'+media.filename.split('.').slice(-1);
   }
 
   try {
-    const ext = media.mimetype.split("/")[1].split(";")[0];
-    media.filename = `${new Date().getTime()} - ${media.filename}`;
     await writeFileAsync(
       join(__dirname, "..", "..", "..", "public", media.filename),
       media.data,
       "base64"
     );
-
-
-    
   } catch (err) {
     Sentry.captureException(err);
     logger.error(err);
@@ -129,7 +114,7 @@ const verifyMediaMessage = async (
     id: msg.id.id,
     ticketId: ticket.id,
     contactId: msg.fromMe ? undefined : contact.id,
-    body: msg.body ,
+    body: msg.body || media.filename,
     fromMe: msg.fromMe,
     read: msg.fromMe,
     mediaUrl: media.filename,
@@ -137,7 +122,7 @@ const verifyMediaMessage = async (
     quotedMsgId: quotedMsg?.id
   };
 
-  await ticket.update({ lastMessage: msg.body });
+  await ticket.update({ lastMessage: msg.body || media.filename });
   const newMessage = await CreateMessageService({ messageData });
 
   return newMessage;
@@ -164,16 +149,20 @@ const verifyMessage = async (
     quotedMsgId: quotedMsg?.id
   };
 
+  // temporaryly disable ts checks because of type definition bug for Location object
+  // @ts-ignore
   await ticket.update({ lastMessage: msg.type === "location" ? msg.location.description ? "Localization - " + msg.location.description.split('\\n')[0] : "Localization" : msg.body });
 
   await CreateMessageService({ messageData });
 };
 
 const prepareLocation = (msg: WbotMessage): WbotMessage => {
-let gmapsUrl = "https://maps.google.com/maps?q=${msg.location.latitude}%2C${msg.location.longitude}&z=17";
+  let gmapsUrl = "https://maps.google.com/maps?q=" + msg.location.latitude + "%2C" + msg.location.longitude + "&z=17&hl=pt-BR";
 
   msg.body = "data:image/png;base64," + msg.body + "|" + gmapsUrl;
 
+  // temporaryly disable ts checks because of type definition bug for Location object
+  // @ts-ignore
   msg.body += "|" + (msg.location.description ? msg.location.description : (msg.location.latitude + ", " + msg.location.longitude))
 
   return msg;
@@ -238,11 +227,9 @@ const verifyQueue = async (
 
 const isValidMsg = (msg: WbotMessage): boolean => {
   if (msg.from === "status@broadcast") return false;
-  
   if (
     msg.type === "chat" ||
     msg.type === "audio" ||
-    msg.type === "call_log" ||
     msg.type === "ptt" ||
     msg.type === "video" ||
     msg.type === "image" ||
@@ -250,9 +237,6 @@ const isValidMsg = (msg: WbotMessage): boolean => {
     msg.type === "vcard" ||
     //msg.type === "multi_vcard" ||
     msg.type === "sticker" ||
-    msg.type === "e2e_notification" || // Ignore Empty Messages Generated When Someone Changes His Account from Personal to Business or vice-versa
-    msg.type === "notification_template" || // Ignore Empty Messages Generated When Someone Changes His Account from Personal to Business or vice-versa
-    msg.author != null || // Ignore Group Messages
     msg.type === "location"
   )
     return true;
@@ -266,21 +250,6 @@ const handleMessage = async (
   if (!isValidMsg(msg)) {
     return;
   }
-
-  // Ignorar Mensagens de Grupo
-	const Settingdb = await Settings.findOne({
-	  where: { key: 'CheckMsgIsGroup' }
-	});
-	if(Settingdb?.value == 'enabled') {
-		if (
-		msg.from === "status@broadcast" ||
-    msg.type === "e2e_notification" ||
-    msg.type === "notification_template" ||
-		msg.author != null
-		) {
-			return;
-		}
-	}
 
   try {
     let msgContact: WbotContact;
@@ -300,13 +269,7 @@ const handleMessage = async (
 
       msgContact = await wbot.getContactById(msg.to);
     } else {
-
-      // Verifica se Cliente fez ligação/vídeo pelo wpp
-      const listSettingsService = await ListSettingsServiceOne({key: "call"});
-      var callSetting = listSettingsService?.value;
-
       msgContact = await msg.getContact();
-
     }
 
     const chat = await msg.getChat();
@@ -446,12 +409,6 @@ const handleMessage = async (
         console.log(error);
       }
     } */
-
-    if(msg.type==="call_log" && callSetting==="disabled"){
-      const sentMessage = await wbot.sendMessage(`${contact.number}@c.us`, "*Mensagem Automática:*\nAs chamadas de voz e vídeo estão desabilitas para esse WhatsApp, favor enviar uma mensagem de texto. Obrigado");
-      await verifyMessage(sentMessage, ticket, contact);
-    }
-
   } catch (err) {
     Sentry.captureException(err);
     logger.error(`Error handling whatsapp message: Err: ${err}`);
@@ -483,7 +440,6 @@ const handleMsgAck = async (msg: WbotMessage, ack: MessageAck) => {
       action: "update",
       message: messageToUpdate
     });
-    
   } catch (err) {
     Sentry.captureException(err);
     logger.error(`Error handling message ack. Err: ${err}`);
@@ -493,8 +449,7 @@ const handleMsgAck = async (msg: WbotMessage, ack: MessageAck) => {
 const wbotMessageListener = (wbot: Session): void => {
   wbot.on("message_create", async msg => {
     handleMessage(msg, wbot);
-  }
-  );
+  });
 
   wbot.on("media_uploaded", async msg => {
     handleMessage(msg, wbot);
