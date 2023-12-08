@@ -170,7 +170,7 @@ const verifyMessage = async (
 };
 
 const prepareLocation = (msg: WbotMessage): WbotMessage => {
-  let gmapsUrl = "https://maps.google.com/maps?q=" + msg.location.latitude + "%2C" + msg.location.longitude + "&z=17&hl=pt-BR";
+let gmapsUrl = "https://maps.google.com/maps?q=${msg.location.latitude}%2C${msg.location.longitude}&z=17";
 
   msg.body = "data:image/png;base64," + msg.body + "|" + gmapsUrl;
 
