@@ -94,17 +94,17 @@ const verifyMediaMessage = async (
 
   if (!media.filename) {
     const ext = media.mimetype.split("/")[1].split(";")[0];
-    media.filename = `${new Date().getTime()}.${ext}`;
+    media.filename = `${randomId}-${new Date().getTime()}.${ext}`;
+  } else {
+    media.filename = media.filename.split('.').slice(0,-1).join('.')+'.'+randomId+'.'+media.filename.split('.').slice(-1);
   }
 
   try {
-    const ext = media.mimetype.split("/")[1].split(";")[0];
-    media.filename = `${new Date().getTime()} - ${media.filename}`;
     await writeFileAsync(
       join(__dirname, "..", "..", "..", "public", media.filename),
       media.data,
       "base64"
-    );    
+    );
   } catch (err) {
     Sentry.captureException(err);
     logger.error(err);
@@ -149,8 +149,6 @@ const verifyMessage = async (
     quotedMsgId: quotedMsg?.id
   };
 
-  // temporaryly disable ts checks because of type definition bug for Location object
-  // @ts-ignore
   await ticket.update({ lastMessage: msg.type === "location" ? msg.location.description ? "Localization - " + msg.location.description.split('\\n')[0] : "Localization" : msg.body });
 
   await CreateMessageService({ messageData });
@@ -161,8 +159,6 @@ const prepareLocation = (msg: WbotMessage): WbotMessage => {
 
   msg.body = "data:image/png;base64," + msg.body + "|" + gmapsUrl;
 
-  // temporaryly disable ts checks because of type definition bug for Location object
-  // @ts-ignore
   msg.body += "|" + (msg.location.description ? msg.location.description : (msg.location.latitude + ", " + msg.location.longitude))
 
   return msg;
