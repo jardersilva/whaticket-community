@@ -1,7 +1,8 @@
 import AppError from "../../errors/AppError";
 import Contact from "../../models/Contact";
+import ContactCustomField from "../../models/ContactCustomField";
 
-interface ExtraInfo {
+interface ExtraInfo extends ContactCustomField {
   name: string;
   value: string;
 }
@@ -10,9 +11,8 @@ interface Request {
   name: string;
   number: string;
   email?: string;
-  acceptAudioMessage?: boolean;
-  useDialogflow?: boolean;
   profilePicUrl?: string;
+  companyId: number;
   extraInfo?: ExtraInfo[];
 }
 
@@ -20,12 +20,11 @@ const CreateContactService = async ({
   name,
   number,
   email = "",
-  acceptAudioMessage,
-  useDialogflow,
+  companyId,
   extraInfo = []
 }: Request): Promise<Contact> => {
   const numberExists = await Contact.findOne({
-    where: { number }
+    where: { number, companyId }
   });
 
   if (numberExists) {
@@ -37,9 +36,8 @@ const CreateContactService = async ({
       name,
       number,
       email,
-      acceptAudioMessage,
-      useDialogflow,
-      extraInfo
+      extraInfo,
+      companyId
     },
     {
       include: ["extraInfo"]

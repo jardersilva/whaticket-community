@@ -9,10 +9,14 @@ import {
   AllowNull,
   Unique,
   Default,
-  HasMany
+  HasMany,
+  ForeignKey,
+  BelongsTo
 } from "sequelize-typescript";
 import ContactCustomField from "./ContactCustomField";
 import Ticket from "./Ticket";
+import Company from "./Company";
+import Schedule from "./Schedule";
 
 @Table
 class Contact extends Model<Contact> {
@@ -34,24 +38,17 @@ class Contact extends Model<Contact> {
   @Column
   email: string;
 
+  @Default("")
   @Column
   profilePicUrl: string;
+
+  @Default("whatsapp")
+  @Column
+  channel: string;
 
   @Default(false)
   @Column
   isGroup: boolean;
-
-  @Default(true)
-  @Column
-  useQueues: boolean;
-
-  @Default(true)
-  @Column
-  acceptAudioMessage: boolean;
-
-  @Default(true)
-  @Column
-  useDialogflow: boolean;
 
   @CreatedAt
   createdAt: Date;
@@ -64,6 +61,20 @@ class Contact extends Model<Contact> {
 
   @HasMany(() => ContactCustomField)
   extraInfo: ContactCustomField[];
+
+  @ForeignKey(() => Company)
+  @Column
+  companyId: number;
+
+  @BelongsTo(() => Company)
+  company: Company;
+
+  @HasMany(() => Schedule, {
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+    hooks: true
+  })
+  schedules: Schedule[];
 }
 
 export default Contact;

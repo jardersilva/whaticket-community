@@ -10,14 +10,18 @@ import {
   Unique,
   BelongsToMany,
   BelongsTo,
-  ForeignKey
+  ForeignKey,
+  HasMany,
+  DataType,
+  Default
 } from "sequelize-typescript";
 import User from "./User";
 import UserQueue from "./UserQueue";
+import Company from "./Company";
 
 import Whatsapp from "./Whatsapp";
 import WhatsappQueue from "./WhatsappQueue";
-import Dialogflow from "./Dialogflow";
+import QueueOption from "./QueueOption";
 
 @Table
 class Queue extends Model<Queue> {
@@ -32,23 +36,22 @@ class Queue extends Model<Queue> {
   name: string;
 
   @AllowNull(false)
-  @Column
-  menuname: string;
-
-  @AllowNull(false)
   @Unique
   @Column
   color: string;
 
+  @Default("")
   @Column
   greetingMessage: string;
 
-  @ForeignKey(() => Dialogflow)
+  @Default("")
   @Column
-  dialogflowId: number;
+  outOfHoursMessage: string;
 
-  @BelongsTo(() => Dialogflow)
-  dialogflow: Dialogflow;
+  @Column({
+    type: DataType.JSONB
+  })
+  schedules: [];
 
   @CreatedAt
   createdAt: Date;
@@ -56,11 +59,25 @@ class Queue extends Model<Queue> {
   @UpdatedAt
   updatedAt: Date;
 
+  @ForeignKey(() => Company)
+  @Column
+  companyId: number;
+
+  @BelongsTo(() => Company)
+  company: Company;
+
   @BelongsToMany(() => Whatsapp, () => WhatsappQueue)
   whatsapps: Array<Whatsapp & { WhatsappQueue: WhatsappQueue }>;
 
   @BelongsToMany(() => User, () => UserQueue)
   users: Array<User & { UserQueue: UserQueue }>;
+
+  @HasMany(() => QueueOption, {
+    onDelete: "DELETE",
+    onUpdate: "DELETE",
+    hooks: true
+  })
+  options: QueueOption[];
 }
 
 export default Queue;

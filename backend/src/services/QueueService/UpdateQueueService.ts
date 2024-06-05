@@ -6,16 +6,18 @@ import ShowQueueService from "./ShowQueueService";
 
 interface QueueData {
   name?: string;
-  menuname?: string;
   color?: string;
   greetingMessage?: string;
+  outOfHoursMessage?: string;
+  schedules?: any[];
 }
 
 const UpdateQueueService = async (
   queueId: number | string,
-  queueData: QueueData
+  queueData: QueueData,
+  companyId: number
 ): Promise<Queue> => {
-  const { color, name, menuname } = queueData;
+  const { color, name } = queueData;
 
   const queueSchema = Yup.object().shape({
     name: Yup.string()
@@ -26,7 +28,7 @@ const UpdateQueueService = async (
         async value => {
           if (value) {
             const queueWithSameName = await Queue.findOne({
-              where: { name: value, id: { [Op.not]: queueId } }
+              where: { name: value, id: { [Op.ne]: queueId }, companyId }
             });
 
             return !queueWithSameName;
@@ -34,9 +36,6 @@ const UpdateQueueService = async (
           return true;
         }
       ),
-    menuname: Yup.string()
-      .min(2, "ERR_QUEUE_INVALID_NAME")
-      .required("ERR_QUEUE_INVALID_NAME"),
     color: Yup.string()
       .required("ERR_QUEUE_INVALID_COLOR")
       .test("Check-color", "ERR_QUEUE_INVALID_COLOR", async value => {
@@ -52,7 +51,7 @@ const UpdateQueueService = async (
         async value => {
           if (value) {
             const queueWithSameColor = await Queue.findOne({
-              where: { color: value, id: { [Op.not]: queueId } }
+              where: { color: value, id: { [Op.ne]: queueId }, companyId }
             });
             return !queueWithSameColor;
           }
@@ -62,12 +61,16 @@ const UpdateQueueService = async (
   });
 
   try {
-    await queueSchema.validate({ color, name, menuname });
-  } catch (err) {
+    await queueSchema.validate({ color, name });
+  } catch (err: any) {
     throw new AppError(err.message);
   }
 
-  const queue = await ShowQueueService(queueId);
+  const queue = await ShowQueueService(queueId, companyId);
+
+  if (queue.companyId !== companyId) {
+    throw new AppError("Não é permitido alterar registros de outra empresa");
+  }
 
   await queue.update(queueData);
 

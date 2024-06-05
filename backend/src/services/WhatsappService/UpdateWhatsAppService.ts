@@ -8,24 +8,21 @@ import AssociateWhatsappQueue from "./AssociateWhatsappQueue";
 
 interface WhatsappData {
   name?: string;
-  number?: string;
   status?: string;
   session?: string;
   isDefault?: boolean;
-  requestCode?: boolean;
-  useoutServiceMessage?: boolean;
   greetingMessage?: string;
-  farewellMessage?: string;
+  complationMessage?: string;
+  outOfHoursMessage?: string;
+  ratingMessage?: string;
   queueIds?: number[];
-  openingHours?: string;
-  closingHours?: string;
-  outServiceMessage?: string;
-  feedbackMessage?: string;
+  token?: string;
 }
 
 interface Request {
   whatsappData: WhatsappData;
   whatsappId: string;
+  companyId: number;
 }
 
 interface Response {
@@ -35,7 +32,8 @@ interface Response {
 
 const UpdateWhatsAppService = async ({
   whatsappData,
-  whatsappId
+  whatsappId,
+  companyId
 }: Request): Promise<Response> => {
   const schema = Yup.object().shape({
     name: Yup.string().min(2),
@@ -45,29 +43,21 @@ const UpdateWhatsAppService = async ({
 
   const {
     name,
-    number,
     status,
     isDefault,
-    requestCode,
-    useoutServiceMessage,
     session,
     greetingMessage,
-    farewellMessage,
-    outServiceMessage,
-    openingHours,
-    closingHours,
-    feedbackMessage,
-    queueIds = []
+    complationMessage,
+    outOfHoursMessage,
+    ratingMessage,
+    queueIds = [],
+    token
   } = whatsappData;
 
   try {
     await schema.validate({ name, status, isDefault });
-  } catch (err) {
-    let errorMessage = "Failed to do something exceptional";
-    if (err instanceof Error) {
-      errorMessage = err.message;
-    }
-    throw new AppError(errorMessage);
+  } catch (err: any) {
+    throw new AppError(err.message);
   }
 
   if (queueIds.length > 1 && !greetingMessage) {
@@ -78,29 +68,30 @@ const UpdateWhatsAppService = async ({
 
   if (isDefault) {
     oldDefaultWhatsapp = await Whatsapp.findOne({
-      where: { isDefault: true, id: { [Op.not]: whatsappId } }
+      where: {
+        isDefault: true,
+        id: { [Op.not]: whatsappId },
+        companyId
+      }
     });
     if (oldDefaultWhatsapp) {
       await oldDefaultWhatsapp.update({ isDefault: false });
     }
   }
 
-  const whatsapp = await ShowWhatsAppService(whatsappId);
+  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
 
   await whatsapp.update({
     name,
-    number,
     status,
     session,
     greetingMessage,
-    farewellMessage,
-    outServiceMessage,
-    openingHours,
-    closingHours,
-    useoutServiceMessage,
+    complationMessage,
+    outOfHoursMessage,
+    ratingMessage,
     isDefault,
-    requestCode,
-    feedbackMessage
+    companyId,
+    token
   });
 
   await AssociateWhatsappQueue(whatsapp, queueIds);

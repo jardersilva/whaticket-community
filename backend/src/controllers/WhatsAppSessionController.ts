@@ -1,49 +1,55 @@
 import { Request, Response } from "express";
-import { removeWbot } from "../libs/wbot";
+import { getWbot, removeWbot } from "../libs/wbot";
 import ShowWhatsAppService from "../services/WhatsappService/ShowWhatsAppService";
 import { StartWhatsAppSession } from "../services/WbotServices/StartWhatsAppSession";
 import UpdateWhatsAppService from "../services/WhatsappService/UpdateWhatsAppService";
-import { getIO } from "../libs/socket";
+import DeleteBaileysService from "../services/BaileysServices/DeleteBaileysService";
+import DeleteWhatsAppService from "../services/WhatsappService/DeleteWhatsAppService";
+import { cacheLayer } from "../libs/cache";
 
 const store = async (req: Request, res: Response): Promise<Response> => {
   const { whatsappId } = req.params;
-  const whatsapp = await ShowWhatsAppService(whatsappId);
+  const { companyId } = req.user;
 
-  StartWhatsAppSession(whatsapp);
+  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+  await StartWhatsAppSession(whatsapp, companyId);
 
   return res.status(200).json({ message: "Starting session." });
 };
 
 const update = async (req: Request, res: Response): Promise<Response> => {
   const { whatsappId } = req.params;
+  const { companyId } = req.user;
 
   const { whatsapp } = await UpdateWhatsAppService({
     whatsappId,
+    companyId,
     whatsappData: { session: "" }
   });
 
-  StartWhatsAppSession(whatsapp);
+  if(whatsapp.channel === "whatsapp") {
+    await StartWhatsAppSession(whatsapp, companyId);
+  }
 
   return res.status(200).json({ message: "Starting session." });
 };
 
 const remove = async (req: Request, res: Response): Promise<Response> => {
+  console.log("remove");
   const { whatsappId } = req.params;
-  const whatsapp = await ShowWhatsAppService(whatsappId);
+  const { companyId } = req.user;
 
-  await whatsapp.update({
-    status: "OPENING",
-    qrcode: "",
-    retries: 0
-  });
+  const whatsapp = await ShowWhatsAppService(whatsappId, companyId );
 
-  const io = getIO();
-  io.emit("whatsappSession", {
-    action: "update",
-    session: whatsapp
-  });
+  if(whatsapp.channel === "whatsapp"){
+    const wbot = getWbot(whatsapp.id);
+    wbot.logout();
+    wbot.ws.close();
+  }
 
-  await removeWbot(whatsapp.id);
+  if(whatsapp.channel === "facebook" || whatsapp.channel === "instagram") {
+    whatsapp.destroy();
+  }
 
   return res.status(200).json({ message: "Session disconnected." });
 };

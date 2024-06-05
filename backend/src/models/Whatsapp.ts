@@ -11,11 +11,14 @@ import {
   AllowNull,
   HasMany,
   Unique,
-  BelongsToMany
+  BelongsToMany,
+  ForeignKey,
+  BelongsTo
 } from "sequelize-typescript";
 import Queue from "./Queue";
 import Ticket from "./Ticket";
 import WhatsappQueue from "./WhatsappQueue";
+import Company from "./Company";
 
 @Table
 class Whatsapp extends Model<Whatsapp> {
@@ -30,16 +33,10 @@ class Whatsapp extends Model<Whatsapp> {
   name: string;
 
   @Column(DataType.TEXT)
-  number: string;
-
-  @Column(DataType.TEXT)
   session: string;
 
   @Column(DataType.TEXT)
   qrcode: string;
-
-  @Column(DataType.STRING)
-  pairingCode: string;
 
   @Column
   status: string;
@@ -53,37 +50,33 @@ class Whatsapp extends Model<Whatsapp> {
   @Column
   retries: number;
 
+  @Default("")
   @Column(DataType.TEXT)
   greetingMessage: string;
 
+  @Default("")
   @Column(DataType.TEXT)
   farewellMessage: string;
 
+  @Default("")
   @Column(DataType.TEXT)
-  outServiceMessage: string;
+  complationMessage: string;
 
+  @Default("")
   @Column(DataType.TEXT)
-  feedbackMessage: string;
+  outOfHoursMessage: string;
 
-  @Column(DataType.TIME)
-  openingHours: string;
+  @Default("")
+  @Column(DataType.TEXT)
+  ratingMessage: string;
 
-  @Column(DataType.TIME)
-  closingHours: string;
+  @Column({ defaultValue: "stable" })
+  provider: string;
 
   @Default(false)
   @AllowNull
   @Column
   isDefault: boolean;
-
-  @Default(false)
-  @Column(DataType.BOOLEAN)
-  requestCode: boolean;
-
-  @Default(false)
-  @AllowNull
-  @Column
-  useoutServiceMessage: boolean;
 
   @CreatedAt
   createdAt: Date;
@@ -99,6 +92,31 @@ class Whatsapp extends Model<Whatsapp> {
 
   @HasMany(() => WhatsappQueue)
   whatsappQueues: WhatsappQueue[];
+
+  @ForeignKey(() => Company)
+  @Column
+  companyId: number;
+
+  @BelongsTo(() => Company)
+  company: Company;
+
+  @Column
+  token: string;
+  
+  @Column(DataType.TEXT)
+  facebookUserId: string;
+  
+  @Column(DataType.TEXT)
+  facebookUserToken: string;
+
+  @Column(DataType.TEXT)
+  facebookPageUserId: string;
+
+  @Column(DataType.TEXT)
+  tokenMeta: string;
+
+  @Column(DataType.TEXT)
+  channel: string;
 }
 
 export default Whatsapp;
