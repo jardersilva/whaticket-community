@@ -8,12 +8,19 @@ import AssociateWhatsappQueue from "./AssociateWhatsappQueue";
 
 interface WhatsappData {
   name?: string;
+  number?: string;
   status?: string;
   session?: string;
   isDefault?: boolean;
+  requestCode?: boolean;
+  useoutServiceMessage?: boolean;
   greetingMessage?: string;
   farewellMessage?: string;
   queueIds?: number[];
+  openingHours?: string;
+  closingHours?: string;
+  outServiceMessage?: string;
+  feedbackMessage?: string;
 }
 
 interface Request {
@@ -38,18 +45,29 @@ const UpdateWhatsAppService = async ({
 
   const {
     name,
+    number,
     status,
     isDefault,
+    requestCode,
+    useoutServiceMessage,
     session,
     greetingMessage,
     farewellMessage,
+    outServiceMessage,
+    openingHours,
+    closingHours,
+    feedbackMessage,
     queueIds = []
   } = whatsappData;
 
   try {
     await schema.validate({ name, status, isDefault });
   } catch (err) {
-    throw new AppError(err.message);
+    let errorMessage = "Failed to do something exceptional";
+    if (err instanceof Error) {
+      errorMessage = err.message;
+    }
+    throw new AppError(errorMessage);
   }
 
   if (queueIds.length > 1 && !greetingMessage) {
@@ -71,11 +89,18 @@ const UpdateWhatsAppService = async ({
 
   await whatsapp.update({
     name,
+    number,
     status,
     session,
     greetingMessage,
     farewellMessage,
-    isDefault
+    outServiceMessage,
+    openingHours,
+    closingHours,
+    useoutServiceMessage,
+    isDefault,
+    requestCode,
+    feedbackMessage
   });
 
   await AssociateWhatsappQueue(whatsapp, queueIds);

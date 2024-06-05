@@ -13,6 +13,9 @@ import CheckIsValidContact from "../services/WbotServices/CheckIsValidContact";
 import GetProfilePicUrl from "../services/WbotServices/GetProfilePicUrl";
 import AppError from "../errors/AppError";
 import GetContactService from "../services/ContactServices/GetContactService";
+import ToggleUseQueuesContactService from "../services/ContactServices/ToggleUseQueuesContactService";
+import ToggleAcceptAudioContactService from "../services/ContactServices/ToggleAcceptAudioContactService"
+import ToggleUseDialogflowContactService from "../services/ContactServices/ToggleUseDialogflowContactService";
 
 type IndexQuery = {
   searchParam: string;
@@ -28,11 +31,17 @@ interface ExtraInfo {
   name: string;
   value: string;
 }
+
 interface ContactData {
   name: string;
   number: string;
   email?: string;
+  useDialogflow: boolean;
   extraInfo?: ExtraInfo[];
+}
+
+interface Dialogflow {
+  useDialogflow: boolean;
 }
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
@@ -83,11 +92,14 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
   let number = validNumber
   let email = newContact.email
   let extraInfo = newContact.extraInfo
+  let useDialogflow = newContact.useDialogflow
+  
 
   const contact = await CreateContactService({
     name,
     number,
     email,
+    useDialogflow,
     extraInfo,
     profilePicUrl
   });
@@ -134,6 +146,58 @@ export const update = async (
   const { contactId } = req.params;
 
   const contact = await UpdateContactService({ contactData, contactId });
+
+  const io = getIO();
+  io.emit("contact", {
+    action: "update",
+    contact
+  });
+
+  return res.status(200).json(contact);
+};
+
+export const toggleUseQueue = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { contactId } = req.params;
+
+  const contact = await ToggleUseQueuesContactService({ contactId });
+
+  const io = getIO();
+  io.emit("contact", {
+    action: "update",
+    contact
+  });
+
+  return res.status(200).json(contact);
+};
+
+export const toggleAcceptAudio = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  var { contactId } = req.params;
+
+  const contact = await ToggleAcceptAudioContactService({ contactId });
+
+  const io = getIO();
+  io.emit("contact", {
+    action: "update",
+    contact
+  });
+
+  return res.status(200).json(contact);
+};
+
+export const toggleUseDialogflow = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const setUseDialogFlow: Dialogflow = req.body;
+  var { contactId } = req.params;
+
+  const contact = await ToggleUseDialogflowContactService({ setUseDialogFlow, contactId });
 
   const io = getIO();
   io.emit("contact", {

@@ -9,6 +9,10 @@ import UpdateTicketService from "../services/TicketServices/UpdateTicketService"
 import SendWhatsAppMessage from "../services/WbotServices/SendWhatsAppMessage";
 import ShowWhatsAppService from "../services/WhatsappService/ShowWhatsAppService";
 import formatBody from "../helpers/Mustache";
+import ShowUserService from "../services/UserServices/ShowUserService";
+import ShowQueueService from "../services/QueueService/ShowQueueService";
+import ListSettingsServiceOne from "../services/SettingServices/ListSettingsServiceOne";
+import { isUndefined } from "util";
 
 type IndexQuery = {
   searchParam: string;
@@ -25,6 +29,7 @@ interface TicketData {
   status: string;
   queueId: number;
   userId: number;
+  transf: boolean;
 }
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
@@ -87,12 +92,63 @@ export const update = async (
   res: Response
 ): Promise<Response> => {
   const { ticketId } = req.params;
+
   const ticketData: TicketData = req.body;
 
-  const { ticket } = await UpdateTicketService({
-    ticketData,
-    ticketId
+  const ticketShow = await ShowTicketService(ticketId);
+
+  const { ticket } = await UpdateTicketService({ ticketData, ticketId });
+
+  function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  const settingsTransfTicket = await ListSettingsServiceOne({
+    key: "transferTicket"
   });
+  const transfTickets = JSON.stringify("enabled");
+
+  if (
+    JSON.stringify(settingsTransfTicket?.value) === transfTickets &&
+    ticketData.transf
+  ) {
+    if (
+      (ticketShow.userId !== ticketData.userId &&
+        ticketShow.queueId === ticketData.queueId) ||
+      ticketData.queueId === undefined
+    ) {
+      const nome = await ShowUserService(ticketData.userId);
+      const msgtxt = "_Você foi transferido(a) para outro atendente_";
+      const msgtxt2 =
+        "_Por favor aguarde, *" +
+        nome.name +
+        "* irá te atender assim que possível_";
+      await SendWhatsAppMessage({ body: msgtxt, ticket });
+      await delay(1000);
+      await SendWhatsAppMessage({ body: msgtxt2, ticket });
+    } else if (ticketData.userId) {
+      const { name } = await ShowQueueService(ticketData.queueId);
+      const nome = await ShowUserService(ticketData.userId);
+      const msgtxt =
+        "_Você foi transferido(a) para a fila *" +
+        name.replace(/Fila [0-9] /gi, "") +
+        "*._";
+      const msgtxt2 =
+        "_Por favor aguarde, *" +
+        nome.name +
+        "* irá te atender assim que possível_";
+      await SendWhatsAppMessage({ body: msgtxt, ticket });
+      await delay(1000);
+      await SendWhatsAppMessage({ body: msgtxt2, ticket });
+    } else {
+      const { name } = await ShowQueueService(ticketData.queueId);
+      const msgtxt =
+        "_Você foi transferido(a) para a fila *" +
+        name.replace(/Fila [0-9] /gi, "") +
+        "*._";
+      await SendWhatsAppMessage({ body: msgtxt, ticket });
+    }
+  }
 
   if (ticket.status === "closed") {
     const whatsapp = await ShowWhatsAppService(ticket.whatsappId);
@@ -119,13 +175,10 @@ export const remove = async (
   const ticket = await DeleteTicketService(ticketId);
 
   const io = getIO();
-  io.to(ticket.status)
-    .to(ticketId)
-    .to("notification")
-    .emit("ticket", {
-      action: "delete",
-      ticketId: +ticketId
-    });
+  io.to(ticket.status).to(ticketId).to("notification").emit("ticket", {
+    action: "delete",
+    ticketId: +ticketId
+  });
 
   return res.status(200).json({ message: "ticket deleted" });
 };

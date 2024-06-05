@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { getIO } from "../libs/socket";
-import { removeWbot } from "../libs/wbot";
+import { removeWbot, requestPairCode } from "../libs/wbot";
 import { StartWhatsAppSession } from "../services/WbotServices/StartWhatsAppSession";
 
 import CreateWhatsAppService from "../services/WhatsappService/CreateWhatsAppService";
@@ -9,13 +9,22 @@ import ListWhatsAppsService from "../services/WhatsappService/ListWhatsAppsServi
 import ShowWhatsAppService from "../services/WhatsappService/ShowWhatsAppService";
 import UpdateWhatsAppService from "../services/WhatsappService/UpdateWhatsAppService";
 
+import AppError from "../errors/AppError";
+
 interface WhatsappData {
   name: string;
+  number: string;
+  requestCode: boolean;
   queueIds: number[];
   greetingMessage?: string;
   farewellMessage?: string;
   status?: string;
   isDefault?: boolean;
+  useoutServiceMessage?: boolean;
+  openingHours?: string;
+  closingHours?: string;
+  outServiceMessage?: string;
+  feedbackMessage?: string;
 }
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
@@ -27,20 +36,34 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
 export const store = async (req: Request, res: Response): Promise<Response> => {
   const {
     name,
+    number,
+    requestCode,
     status,
     isDefault,
+    useoutServiceMessage,
     greetingMessage,
     farewellMessage,
-    queueIds
+    queueIds,
+    openingHours,
+    closingHours,
+    outServiceMessage,
+    feedbackMessage
   }: WhatsappData = req.body;
 
   const { whatsapp, oldDefaultWhatsapp } = await CreateWhatsAppService({
     name,
+    number,
+    requestCode,
     status,
     isDefault,
+    useoutServiceMessage,
     greetingMessage,
     farewellMessage,
-    queueIds
+    queueIds,
+    openingHours,
+    closingHours,
+    outServiceMessage,
+    feedbackMessage
   });
 
   StartWhatsAppSession(whatsapp);
@@ -81,6 +104,12 @@ export const update = async (
     whatsappId
   });
 
+  if (whatsapp.requestCode && !!whatsapp.number) {
+    await requestPairCode(whatsapp);
+  } else {
+    await whatsapp.update({ pairingCode: "" });
+  }
+
   const io = getIO();
   io.emit("whatsapp", {
     action: "update",
@@ -101,10 +130,14 @@ export const remove = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
+  if (req.user.profile !== "admin") {
+    throw new AppError("ERR_NO_PERMISSION", 403);
+  }
+
   const { whatsappId } = req.params;
 
   await DeleteWhatsAppService(whatsappId);
-  removeWbot(+whatsappId);
+  removeWbot(+whatsappId, true);
 
   const io = getIO();
   io.emit("whatsapp", {

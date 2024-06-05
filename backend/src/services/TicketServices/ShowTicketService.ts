@@ -11,7 +11,15 @@ const ShowTicketService = async (id: string | number): Promise<Ticket> => {
       {
         model: Contact,
         as: "contact",
-        attributes: ["id", "name", "number", "profilePicUrl"],
+        attributes: [
+          "id",
+          "name",
+          "number",
+          "profilePicUrl",
+          "useDialogflow",
+          "useQueues",
+          "acceptAudioMessage"
+        ],
         include: ["extraInfo"]
       },
       {
@@ -22,7 +30,8 @@ const ShowTicketService = async (id: string | number): Promise<Ticket> => {
       {
         model: Queue,
         as: "queue",
-        attributes: ["id", "name", "color"]
+        attributes: ["id", "name", "color"],
+        include: ["dialogflow"]
       },
       {
         model: Whatsapp,

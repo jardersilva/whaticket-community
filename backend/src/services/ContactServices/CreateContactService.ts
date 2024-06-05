@@ -10,6 +10,8 @@ interface Request {
   name: string;
   number: string;
   email?: string;
+  acceptAudioMessage?: boolean;
+  useDialogflow?: boolean;
   profilePicUrl?: string;
   extraInfo?: ExtraInfo[];
 }
@@ -18,6 +20,8 @@ const CreateContactService = async ({
   name,
   number,
   email = "",
+  acceptAudioMessage,
+  useDialogflow,
   extraInfo = []
 }: Request): Promise<Contact> => {
   const numberExists = await Contact.findOne({
@@ -33,6 +37,8 @@ const CreateContactService = async ({
       name,
       number,
       email,
+      acceptAudioMessage,
+      useDialogflow,
       extraInfo
     },
     {
