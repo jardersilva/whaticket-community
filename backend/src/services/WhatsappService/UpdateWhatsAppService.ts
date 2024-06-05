@@ -12,17 +12,13 @@ interface WhatsappData {
   session?: string;
   isDefault?: boolean;
   greetingMessage?: string;
-  complationMessage?: string;
-  outOfHoursMessage?: string;
-  ratingMessage?: string;
+  farewellMessage?: string;
   queueIds?: number[];
-  token?: string;
 }
 
 interface Request {
   whatsappData: WhatsappData;
   whatsappId: string;
-  companyId: number;
 }
 
 interface Response {
@@ -32,8 +28,7 @@ interface Response {
 
 const UpdateWhatsAppService = async ({
   whatsappData,
-  whatsappId,
-  companyId
+  whatsappId
 }: Request): Promise<Response> => {
   const schema = Yup.object().shape({
     name: Yup.string().min(2),
@@ -47,16 +42,13 @@ const UpdateWhatsAppService = async ({
     isDefault,
     session,
     greetingMessage,
-    complationMessage,
-    outOfHoursMessage,
-    ratingMessage,
-    queueIds = [],
-    token
+    farewellMessage,
+    queueIds = []
   } = whatsappData;
 
   try {
     await schema.validate({ name, status, isDefault });
-  } catch (err: any) {
+  } catch (err) {
     throw new AppError(err.message);
   }
 
@@ -68,30 +60,22 @@ const UpdateWhatsAppService = async ({
 
   if (isDefault) {
     oldDefaultWhatsapp = await Whatsapp.findOne({
-      where: {
-        isDefault: true,
-        id: { [Op.not]: whatsappId },
-        companyId
-      }
+      where: { isDefault: true, id: { [Op.not]: whatsappId } }
     });
     if (oldDefaultWhatsapp) {
       await oldDefaultWhatsapp.update({ isDefault: false });
     }
   }
 
-  const whatsapp = await ShowWhatsAppService(whatsappId, companyId);
+  const whatsapp = await ShowWhatsAppService(whatsappId);
 
   await whatsapp.update({
     name,
     status,
     session,
     greetingMessage,
-    complationMessage,
-    outOfHoursMessage,
-    ratingMessage,
-    isDefault,
-    companyId,
-    token
+    farewellMessage,
+    isDefault
   });
 
   await AssociateWhatsappQueue(whatsapp, queueIds);
